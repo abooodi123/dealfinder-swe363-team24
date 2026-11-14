@@ -7,19 +7,16 @@
  * storeRating() / visibleReviews() in src/lib/selectors.ts.
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Heart, Search, Trash2, TriangleAlert } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, CircleAlert, CircleCheck, Heart, Search, Star, Trash2, TriangleAlert } from "lucide-react";
 import type { Review, Store } from "../lib/types";
 import { getData, toggleFavorite, update, useCurrentUser, useData } from "../lib/store";
 import { getStore, isPublicStore, storeRating } from "../lib/selectors";
-import { cn, isStrongPassword, isValidEmail, plural } from "../lib/format";
+import { cn, containsContactDetails, isStrongPassword, isValidEmail, plural } from "../lib/format";
 import { useDocumentTitle, useSimulatedLoading } from "../lib/hooks";
-import { Alert, Button, Card, Container, EmptyState, Field, Input, Modal, PageHeader, Select, useToast } from "../ui/kit";
-import { PlannedPage, StoreCard, StoreCardSkeleton } from "../ui/shared";
+import { Alert, Button, Card, Container, EmptyState, Field, Input, Modal, PageHeader, Select, TextArea, useToast } from "../ui/kit";
+import { RatingInline, StoreCard, StoreCardSkeleton, StoreLogo } from "../ui/shared";
 import { PasswordInput, PasswordRules, isValidPhone, wait } from "./auth";
-
-const MEMBER = "Member 2 (Authentication and Shopper Features)";
-const FILE = "src/pages/shopper.tsx";
 
 /* ============================== Favorites ============================= */
 
@@ -479,20 +476,268 @@ function DeleteAccountSection() {
   );
 }
 
-export const WriteReviewPage = () => (
-  <PlannedPage
-    title="Write a review"
-    member={MEMBER}
-    file={FILE}
-    requirements="W05-1, W05-2, FR07"
-    tasks={[
-      "Star selector (1-5) and review text with a 1,000 character counter",
-      "Reject links, emails and phone numbers; one review per shopper per store",
-      "Save with inBase: false so the store's average rating updates immediately",
-      "Edit an existing review",
-    ]}
-  />
-);
+/* ============================ Write a review ============================ */
+
+const MAX_REVIEW = 1000;
+const MIN_REVIEW = 10;
+const STAR_WORDS = ["", "Terrible", "Poor", "Okay", "Good", "Excellent"];
+
+/** Five large star buttons that work like radio buttons (arrow keys change the value). */
+function StarPicker({ value, onChange, invalid }: { value: number; onChange: (value: number) => void; invalid?: boolean }) {
+  const [hover, setHover] = useState(0);
+  const shown = hover || value;
+  return (
+    <div>
+      <div
+        role="radiogroup"
+        aria-label="Your rating"
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? "rv-rating-error" : undefined}
+        className="flex items-center gap-1"
+        onMouseLeave={() => setHover(0)}
+      >
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={value === n}
+            aria-label={`${n} ${n === 1 ? "star" : "stars"}, ${STAR_WORDS[n]}`}
+            tabIndex={value === n || (!value && n === 1) ? 0 : -1}
+            onMouseEnter={() => setHover(n)}
+            onClick={() => onChange(n)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+                e.preventDefault();
+                onChange(Math.min(5, (value || 0) + 1));
+              } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+                e.preventDefault();
+                onChange(Math.max(1, (value || 2) - 1));
+              }
+            }}
+            className="rounded-lg p-1 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-brand-text"
+          >
+            <Star className={cn("size-9", n <= shown ? "fill-star text-star" : invalid ? "text-bad/60" : "text-line-strong")} strokeWidth={1.5} aria-hidden />
+          </button>
+        ))}
+        <span className="ml-2 text-sm font-semibold text-muted" aria-hidden>
+          {shown ? STAR_WORDS[shown] : "Choose a rating"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** W05-1, W05-2, FR07: write a new review or edit your own. */
+export function WriteReviewPage() {
+  const { storeId } = useParams();
+  const data = useData();
+  const user = useCurrentUser()!; // the route only lets shoppers in
+  const navigate = useNavigate();
+  const toast = useToast();
+  const store = getStore(data, storeId);
+  const existing = store ? data.reviews.find((r) => r.storeId === store.id && r.userId === user.id) : undefined;
+
+  const [rating, setRating] = useState(existing?.rating ?? 0);
+  const [comment, setComment] = useState(existing?.comment ?? "");
+  const [errors, setErrors] = useState<{ rating?: string; comment?: string }>({});
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  useDocumentTitle(existing ? "Edit your review" : "Write a review");
+
+  if (!store || !isPublicStore(store)) {
+    return (
+      <Container className="py-16">
+        <EmptyState
+          icon={<TriangleAlert />}
+          title="This store is not available"
+          action={
+            <Button variant="primary" to="/explore">
+              Explore stores
+            </Button>
+          }
+        >
+          It may have been removed, or the link is wrong, so it cannot be reviewed right now.
+        </EmptyState>
+      </Container>
+    );
+  }
+
+  const rated = storeRating(data, store);
+  const trimmed = comment.trim();
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    const found: typeof errors = {};
+    if (!rating) found.rating = "Choose a rating from 1 to 5 stars.";
+    if (!trimmed) found.comment = "Write a few words about your experience.";
+    else if (trimmed.length < MIN_REVIEW) found.comment = `Write at least ${MIN_REVIEW} characters so other shoppers can learn from it.`;
+    else if (containsContactDetails(trimmed)) found.comment = "Remove links, email addresses and phone numbers. Reviews cannot contain contact details.";
+    setErrors(found);
+    if (found.rating || found.comment) return;
+    setBusy(true);
+    await wait(500);
+    update((d) => {
+      const mine = existing && d.reviews.find((r) => r.id === existing.id);
+      if (mine) {
+        mine.rating = rating;
+        mine.comment = trimmed;
+      } else {
+        // inBase: false so storeRating() adds it to the average straight away.
+        d.reviews.push({
+          id: `r-${Date.now()}`,
+          storeId: store.id,
+          userId: user.id,
+          userName: user.name,
+          rating,
+          comment: trimmed,
+          createdAt: Date.now(),
+          status: "visible",
+          inBase: false,
+          flags: [],
+        });
+      }
+    });
+    toast({ title: existing ? "Your review was updated" : "Thanks for your review", description: `It now appears on ${store.name}'s page.` });
+    navigate(`/stores/${store.id}`);
+  };
+
+  const remove = async () => {
+    if (!existing) return;
+    setBusy(true);
+    await wait(400);
+    update((d) => {
+      d.reviews = d.reviews.filter((r) => r.id !== existing.id);
+    });
+    toast({ title: "Your review was deleted", description: "The store's rating was updated." });
+    navigate(`/stores/${store.id}`);
+  };
+
+  return (
+    <Container className="py-8 sm:py-12">
+      <Link to={`/stores/${store.id}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-fg">
+        <ArrowLeft className="size-4" aria-hidden />
+        Back to {store.name}
+      </Link>
+      <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div>
+          <PageHeader title={existing ? "Edit your review" : "Write a review"} subtitle={`Share your honest experience with ${store.name}.`} />
+          {existing?.status === "hidden" && (
+            <Alert tone="warn" title="A moderator hid this review" className="mt-6">
+              {existing.modNote ?? "It broke our review guidelines."} Only you can see it. Editing it does not make it public again.
+            </Alert>
+          )}
+          <Card className="mt-6 p-5 sm:p-6">
+            <form onSubmit={submit} noValidate className="space-y-6">
+              <div>
+                <p className="mb-2 text-sm font-semibold">
+                  Your rating<span className="ml-0.5 text-bad" aria-hidden>*</span>
+                </p>
+                <StarPicker
+                  value={rating}
+                  onChange={(n) => {
+                    setRating(n);
+                    setErrors((x) => ({ ...x, rating: undefined }));
+                  }}
+                  invalid={!!errors.rating}
+                />
+                {errors.rating && (
+                  <p id="rv-rating-error" role="alert" className="mt-1.5 flex items-center gap-1.5 text-sm text-bad">
+                    <CircleAlert className="size-4 shrink-0" aria-hidden />
+                    {errors.rating}
+                  </p>
+                )}
+              </div>
+              <Field
+                label="Your review"
+                htmlFor="rv-comment"
+                required
+                error={errors.comment}
+                hint="What went well or badly? Delivery, quality, customer service, returns…"
+              >
+                <TextArea
+                  id="rv-comment"
+                  rows={7}
+                  maxLength={MAX_REVIEW}
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  invalid={!!errors.comment}
+                  aria-describedby={errors.comment ? "rv-comment-error" : "rv-comment-hint rv-comment-count"}
+                  disabled={busy}
+                />
+                <p id="rv-comment-count" className={cn("text-right text-xs", comment.length >= MAX_REVIEW - 50 ? "text-warn" : "text-subtle")} aria-live="polite">
+                  {comment.length.toLocaleString("en-US")} / {MAX_REVIEW.toLocaleString("en-US")}
+                </p>
+              </Field>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+                {existing ? (
+                  <Button variant="ghost" className="text-bad hover:text-bad" icon={<Trash2 className="size-4" />} onClick={() => setConfirmDelete(true)} disabled={busy}>
+                    Delete review
+                  </Button>
+                ) : (
+                  <span />
+                )}
+                <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                  <Button to={`/stores/${store.id}`} variant="ghost">
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" loading={busy}>
+                    {existing ? "Save changes" : "Post review"}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </Card>
+        </div>
+
+        <aside className="space-y-4">
+          <Card className="flex items-center gap-4 p-5">
+            <StoreLogo store={store} />
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{store.name}</p>
+              <RatingInline rating={rated} className="mt-1 text-sm" />
+            </div>
+          </Card>
+          <Card className="p-5 text-sm">
+            <h2 className="font-semibold">Review guidelines</h2>
+            <ul className="mt-3 space-y-2 text-muted">
+              {[
+                "Describe your own experience with this store.",
+                "Be respectful: no insults or personal attacks.",
+                "No links, email addresses or phone numbers.",
+                "One review per store. You can edit it at any time.",
+              ].map((rule) => (
+                <li key={rule} className="flex gap-2">
+                  <CircleCheck className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
+                  {rule}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </aside>
+      </div>
+
+      <Modal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        icon={<Trash2 />}
+        title="Delete your review?"
+        description={`It disappears from ${store.name}'s page and the store's rating is updated. You can write a new one later.`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
+              Keep it
+            </Button>
+            <Button variant="danger" loading={busy} onClick={remove}>
+              Delete review
+            </Button>
+          </>
+        }
+      />
+    </Container>
+  );
+}
 
 /**
  * Buttons shown under each review on the Store details page (Report, Edit).
