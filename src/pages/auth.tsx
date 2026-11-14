@@ -16,10 +16,6 @@ import { DEMO_ACCOUNTS } from "../lib/seed";
 import { cn, isStrongPassword, isValidEmail, passwordChecks } from "../lib/format";
 import { useDocumentTitle } from "../lib/hooks";
 import { Alert, Button, Card, Checkbox, Field, Input, Spinner, useToast } from "../ui/kit";
-import { PlannedPage } from "../ui/shared";
-
-const MEMBER = "Member 2 (Authentication and Shopper Features)";
-const FILE = "src/pages/auth.tsx";
 
 /* ============================== Helpers ============================= */
 
@@ -43,7 +39,7 @@ export function makeLinkToken(kind: LinkKind, email: string, createdAt = Date.no
 }
 
 /** Reads a link token. Returns null when the token is damaged or for another kind of link. */
-export function readLinkToken(token: string | null, kind: LinkKind): { email: string; ageMs: number } | null {
+function readLinkToken(token: string | null, kind: LinkKind): { email: string; ageMs: number } | null {
   if (!token) return null;
   try {
     const value = JSON.parse(atob(token)) as { k?: string; e?: string; t?: number };
@@ -297,8 +293,6 @@ function PasswordInput({
   );
 }
 
-/* ====================== Screens still to be built ====================== */
-
 /* ============================== Sign up ============================= */
 
 /** Live checklist of the password rules (turns green as each rule is met). */
@@ -521,19 +515,195 @@ function SignUpForm({ owner }: { owner: boolean }) {
 export const SignUpPage = () => <SignUpForm owner={false} />;
 export const OwnerSignUpPage = () => <SignUpForm owner />;
 
-export const ForgotPasswordPage = () => (
-  <PlannedPage
-    title="Reset your password"
-    member={MEMBER}
-    file={FILE}
-    requirements="W01-6, FR01"
-    tasks={[
-      "Ask for the account email",
-      "Always show the same confirmation message (do not reveal whether the email exists)",
-      "Reset form with the password rules",
-    ]}
-  />
-);
+/* ========================= Forgot / reset password ======================== */
+
+const RESET_LIFETIME_MS = 30 * 60_000;
+
+/** Small fingerprint of the current password, so a reset link stops working once it was used. */
+function fingerprint(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = (h * 33) ^ text.charCodeAt(i);
+  return (h >>> 0).toString(36);
+}
+
+/** The page a password reset email links to (only accounts that exist get a working link). */
+function resetLink(email: string): string {
+  const account = getData().users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+  const token = btoa(JSON.stringify({ k: "reset", e: email.trim().toLowerCase(), t: Date.now(), v: account ? fingerprint(account.password) : "" }));
+  return `/forgot-password?token=${encodeURIComponent(token)}`;
+}
+
+/** W01-6: ask for the email; the page with `?token=` shows the new password form. */
+export function ForgotPasswordPage() {
+  const [params] = useSearchParams();
+  return params.get("token") ? <ResetPasswordForm token={params.get("token")!} /> : <ForgotPasswordForm initialEmail={params.get("email") ?? ""} />;
+}
+
+function ForgotPasswordForm({ initialEmail }: { initialEmail: string }) {
+  const [email, setEmail] = useState(initialEmail);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [link, setLink] = useState("");
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!email.trim()) return setError("Enter your email address.");
+    if (!isValidEmail(email)) return setError("Enter a valid email address, like name@example.com.");
+    setError("");
+    setBusy(true);
+    await wait();
+    setBusy(false);
+    setLink(resetLink(email));
+    setSentTo(email.trim());
+  };
+
+  if (sentTo) {
+    // Same message whether or not the account exists, so the page does not reveal who has an account.
+    return (
+      <AuthCard
+        title="Check your email"
+        icon={<MailCheck />}
+        subtitle={
+          <>
+            If an account uses <strong className="text-fg">{sentTo}</strong>, we sent it a link to choose a new password. The link works for 30 minutes.
+          </>
+        }
+        footer={
+          <Link to="/login" className="font-semibold text-brand-text hover:underline">
+            Back to log in
+          </Link>
+        }
+      >
+        <Button variant="secondary" fullWidth onClick={() => setLink(resetLink(sentTo))}>
+          Send the email again
+        </Button>
+        <PrototypeMail>
+          The reset email contains this link:{" "}
+          <Link to={link} className="font-semibold text-brand-text underline">
+            Choose a new password
+          </Link>
+        </PrototypeMail>
+      </AuthCard>
+    );
+  }
+
+  return (
+    <AuthCard
+      title="Reset your password"
+      icon={<KeyRound />}
+      subtitle="Enter the email address you signed up with. We will send you a link to choose a new password."
+      footer={
+        <Link to="/login" className="font-semibold text-brand-text hover:underline">
+          Back to log in
+        </Link>
+      }
+    >
+      <form onSubmit={submit} noValidate className="space-y-4">
+        <Field label="Email" htmlFor="fp-email" error={error}>
+          <Input
+            id="fp-email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            invalid={!!error}
+            aria-describedby={error ? "fp-email-error" : undefined}
+            disabled={busy}
+          />
+        </Field>
+        <Button type="submit" variant="primary" size="lg" fullWidth loading={busy}>
+          {busy ? "Sending…" : "Send reset link"}
+        </Button>
+      </form>
+    </AuthCard>
+  );
+}
+
+function ResetPasswordForm({ token }: { token: string }) {
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({});
+  const [busy, setBusy] = useState(false);
+
+  // Decide once whether the link can be used.
+  const [check] = useState(() => {
+    let v = "";
+    try {
+      v = (JSON.parse(atob(token)) as { v?: string }).v ?? "";
+    } catch {
+      /* handled below */
+    }
+    const info = readLinkToken(token, "reset");
+    const account = info && getData().users.find((u) => u.email.toLowerCase() === info.email);
+    if (!info || !account) return { state: "invalid" as const };
+    if (fingerprint(account.password) !== v) return { state: "used" as const };
+    if (info.ageMs > RESET_LIFETIME_MS) return { state: "expired" as const };
+    return { state: "ok" as const, account };
+  });
+
+  if (check.state !== "ok") {
+    const text =
+      check.state === "expired"
+        ? "Reset links work for 30 minutes. Ask for a new one and use it soon after it arrives."
+        : check.state === "used"
+          ? "This link was already used and your password has been changed. Log in with the new password, or ask for a new link if that was not you."
+          : "This link is not valid. It may have been copied incompletely.";
+    return (
+      <AuthCard
+        title={check.state === "expired" ? "This link has expired" : check.state === "used" ? "This link was already used" : "This link is not valid"}
+        icon={check.state === "expired" ? <Clock /> : <TriangleAlert />}
+        subtitle={text}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="primary" to="/forgot-password">
+            Get a new link
+          </Button>
+          <Button to="/login">Back to log in</Button>
+        </div>
+      </AuthCard>
+    );
+  }
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    const found: typeof errors = {};
+    if (!isStrongPassword(password)) found.password = "Choose a stronger password: every rule below must be met.";
+    else if (password === check.account.password) found.password = "Choose a password you have not used for this account.";
+    if (!confirm) found.confirm = "Type the password again.";
+    else if (confirm !== password) found.confirm = "The two passwords do not match.";
+    setErrors(found);
+    if (found.password || found.confirm) return;
+    setBusy(true);
+    await wait();
+    update((d) => {
+      const u = d.users.find((x) => x.id === check.account.id);
+      if (u) u.password = password;
+    });
+    navigate(`/login?reason=reset&email=${encodeURIComponent(check.account.email)}`, { replace: true });
+  };
+
+  return (
+    <AuthCard title="Choose a new password" icon={<KeyRound />} subtitle={<>For {check.account.email}. Pick something you have not used on DealFinder before.</>}>
+      <form onSubmit={submit} noValidate className="space-y-4">
+        <Field label="New password" htmlFor="rp-password" error={errors.password}>
+          <PasswordInput id="rp-password" autoComplete="new-password" value={password} onChange={setPassword} invalid={!!errors.password} disabled={busy} />
+          <PasswordRules value={password} />
+        </Field>
+        <Field label="Confirm new password" htmlFor="rp-confirm" error={errors.confirm}>
+          <PasswordInput id="rp-confirm" autoComplete="new-password" value={confirm} onChange={setConfirm} invalid={!!errors.confirm} disabled={busy} />
+        </Field>
+        <Button type="submit" variant="primary" size="lg" fullWidth loading={busy}>
+          {busy ? "Saving…" : "Save new password"}
+        </Button>
+      </form>
+    </AuthCard>
+  );
+}
 
 /* ============================ Activation ============================ */
 
