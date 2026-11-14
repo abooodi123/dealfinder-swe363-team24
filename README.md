@@ -39,7 +39,8 @@ DealFinder has 24 functional requirements (FR01–FR24) across three roles, defi
 | Shared UI | Navbar, footer, UI kit, store cards, loading / empty / error states, dark and light theme, responsive layout | All pages | Member 1 | Done |
 | Accounts and shopper | FR01 accounts, FR06 favorites, FR07 reviews | Log in, Sign up, Profile, Favorites, Write a review | Member 2 | In progress |
 | Store owner portal | FR09–FR16 | Dashboard, Add / Claim store, Applications, Edit profile, Coupons, Support | Member 3 | In progress |
-| Administrator portal | FR17–FR24 | Review queue, Catalog, Categories, Moderation, Featured, Analytics | Member 4 | In progress |
+| Administrator portal | FR17–FR24 (+ admin side of FR16) | Overview, Submissions, Catalog, Add / Edit store, Categories, Moderation, Featured, Analytics, Support | Member 4 | Done |
+| Quality | Requirements guide, Access denied, browser tests (`tests/`) | Guide, Access denied | Member 4 | Done |
 
 ### Public pages (Member 1)
 
@@ -49,6 +50,23 @@ DealFinder has 24 functional requirements (FR01–FR24) across three roles, defi
 - **Visit official website** – a short reachability check, the *You are leaving DealFinder* notice, then the store opens in a new tab and one referral click is recorded. If the website is down, the shopper is told clearly and can report the broken link (once).
 - **Guest actions** – saving a store as a guest opens a *Log in to save* prompt; after logging in the user returns to the same store and it is saved automatically.
 - **404 and error screens** – a friendly not-found page with search and category links, an error boundary that shows *This page hit a problem* instead of a blank screen, and an *Access denied* page for the wrong role.
+
+### Administrator portal (Member 4)
+
+All admin pages share one sub-navigation (Overview, Submissions, Catalog, Categories, Moderation, Featured, Analytics, Support) with live counts of what is waiting.
+Every decision is written to the activity log, and the affected store owner gets a notification.
+
+- **Overview** – six live numbers (submissions waiting, reported reviews, open support requests, live stores, referral visits in 30 days, featured today), a *Needs a decision* list ordered by priority and age, and recent administrator activity.
+- **Submissions (FR17)** – Waiting / With owner / Decided tabs, search by store, owner or APP number, type filter, and a *Competing claim* warning when two owners claim the same store. The submission page shows the store, the proof of ownership (with warnings such as a 9-digit registration number or a missing DNS record), the owner and the history. *Approve*, *Request changes* (1–5 items, each 10+ characters) and *Reject* (reason of 20+ characters, with quick reasons). Approving a claim gives the owner the listing and rejects the competing claim automatically. If another admin already decided, nothing is changed and a clear message is shown.
+- **Catalog (FR19, FR20)** – every store with its status (Live, Closed, Hidden by owner, Disabled, Waiting for review, Changes requested, Rejected), search, status and category filters. *Disable* asks for a reason and hides the store everywhere immediately (with Undo); *Restore* brings it back; *Delete* lists what will be removed (reviews, coupons, featured slots, submissions, favorites) and requires typing the store name.
+- **Add / edit a store (FR18, FR19)** – name, https website, category, price level, description (20–300 characters), up to 10 keywords, contact email and the Verified badge, with a live preview. Duplicate names and websites are rejected. Leaving with unsaved changes asks for confirmation.
+- **Categories (FR21)** – add with an icon picker, rename, move up / down (this is the order on Home and Explore), hide / show (with Undo), and delete; deleting a category that still has stores asks where to move them.
+- **Review moderation (FR22)** – Reported / Hidden / All tabs with search. *Keep* dismisses the reports (with Undo), *Hide* needs a reason and shows how the store's rating will change, *Restore* and *Delete* (with confirmation). Hidden and deleted reviews stop counting toward the rating immediately, including reviews that were part of the imported rating history.
+- **Featured content (FR23)** – Showing now / Scheduled / Ended. Schedule a store (Home or Explore) or a coupon (Home) with a first and last day. Rules: live stores and active coupons only, no past start dates, at most 60 days, a coupon slot cannot outlast the coupon, no duplicate slot for the same item, and at most 6 stores and 6 coupons on Home (4 stores on Explore) on any day. Running slots warn when their store or coupon is no longer shown; *End now* or *Remove*.
+- **Analytics (FR24)** – 7 / 30 / 90 days or a custom range (validated), category filter, totals with the change against the previous period, a referral-visits chart (daily, weekly for long ranges) with hover / keyboard values and a table view, stores ranked by visits with share and change, and **Export CSV** of exactly what is shown.
+- **Support (admin side of FR16)** – owners' requests with Open / Answered / Closed filters and search; opening a request marks it read; replying notifies the owner; close and reopen.
+- **Requirements guide** (`/guide`) – FR01–FR24 and the two extras, each with its screen, its owner and the steps to try (including error cases), filterable by role; *Open as …* signs in with the matching demo account.
+- **Access denied** – shown when a signed-in user opens another role's page, with a button to log in with the right account.
 
 ---
 
@@ -100,6 +118,19 @@ Open <http://localhost:5173> in your browser.
 | `npm run preview` | Serve the production build locally |
 | `npm run typecheck` | Run the TypeScript compiler without building |
 
+### Browser tests (Member 4)
+
+`tests/test_admin.py` checks the administrator portal end to end in a real browser (20 checks: access control, FR16–FR24 normal and error cases, no page wider than a 375 px phone, no JavaScript errors).
+
+```bash
+pip install playwright
+python -m playwright install chromium
+npm run dev                                                      # terminal 1
+DEALFINDER_URL=http://localhost:5173 python tests/test_admin.py  # terminal 2
+```
+
+See [tests/README.md](tests/README.md).
+
 ---
 
 ## Usage
@@ -125,7 +156,8 @@ Prototype tools can also switch between dark and light mode and **reset the demo
 5. **Leaving notice** – press *Visit official website*, then *Stay on DealFinder* or *Continue to website*.
 6. **Website down** – open *Palm & Pine Decor* and press *Visit official website*, then *Report broken link*.
 7. **Guest save** – as a guest press *Save to favorites*, choose *Log in*, sign in as the shopper and you return to the store with it saved.
-8. **Responsive** – resize the window or use the browser's device toolbar; the filters collapse behind a *Filters* button and the navbar becomes a menu on mobile.
+8. **Administrator** – sign in as the administrator, open *Submissions* and approve *Henna House*; it appears on Explore with the Verified badge. The [requirements guide](http://localhost:5173/guide) lists what to try for FR17–FR24.
+9. **Responsive** – resize the window or use the browser's device toolbar; the filters collapse behind a *Filters* button and the navbar becomes a menu on mobile.
 
 ---
 
@@ -158,9 +190,10 @@ Prototype tools can also switch between dark and light mode and **reset the demo
 │       ├── owner.tsx        # Member 3: Owner dashboard and listings
 │       ├── ownerParts.tsx   # Member 3: Store submission and claim
 │       ├── ownerTools.tsx   # Member 3: Coupons, replies, analytics, support
-│       ├── admin.tsx        # Member 4: Admin dashboard, queue, catalog
-│       ├── admin2.tsx       # Member 4: Categories, moderation, featured, analytics
+│       ├── admin.tsx        # Member 4: Admin overview, submissions, catalog, add / edit store
+│       ├── admin2.tsx       # Member 4: Categories, moderation, featured, analytics, admin support
 │       └── system.tsx       # Member 4: Access denied, requirements guide
+├── tests/                   # Member 4: browser tests (Playwright, Python)
 ├── docs/
 │   └── DESIGN.md            # Design system: colours, type, components (matches Figma)
 ├── CONTRIBUTING.md          # How the team adds pages, uses the kit and the data store
@@ -181,7 +214,14 @@ Prototype tools can also switch between dark and light mode and **reset the demo
 | `/favorites`, `/stores/:storeId/review` | Favorites, Write a review | Shopper | Member 2 |
 | `/profile` | Profile settings | Signed in | Member 2 |
 | `/portal/*` | Store owner portal | Store owner | Member 3 |
-| `/admin/*` | Administrator portal | Administrator | Member 4 |
+| `/admin` | Admin overview | Administrator | Member 4 |
+| `/admin/queue`, `/admin/queue/:appId` | Submissions and one submission (FR17) | Administrator | Member 4 |
+| `/admin/catalog`, `/admin/catalog/new`, `/admin/catalog/:storeId` | Catalog, add store, edit store (FR18–FR20) | Administrator | Member 4 |
+| `/admin/categories` | Categories (FR21) | Administrator | Member 4 |
+| `/admin/moderation` | Review moderation (FR22); `?review=<id>` highlights one review | Administrator | Member 4 |
+| `/admin/featured` | Featured content (FR23) | Administrator | Member 4 |
+| `/admin/analytics` | Analytics and CSV export (FR24) | Administrator | Member 4 |
+| `/admin/support`, `/admin/support/:ticketId` | Support requests, admin side (FR16) | Administrator | Member 4 |
 | `/guide` | Requirements guide | Everyone | Member 4 |
 | `*` | 404 Not found | Everyone | Member 1 |
 
@@ -196,7 +236,7 @@ Guests who open a protected page are sent to Log in and brought back afterwards;
 | Member 1 | Abdullah Ewidah | Public UI and Design Lead: Figma reference, shared layout and UI kit, Home, Explore, Store details, 404 | `src/pages/public.tsx`, `src/ui/*`, `src/index.css`, `src/App.tsx` |
 | Member 2 | _to be confirmed_ | Authentication and Shopper Features | `src/pages/auth.tsx`, `src/pages/shopper.tsx` |
 | Member 3 | _to be confirmed_ | Store Owner Portal | `src/pages/owner.tsx`, `ownerParts.tsx`, `ownerTools.tsx` |
-| Member 4 | _to be confirmed_ | Administrator Portal and Quality | `src/pages/admin.tsx`, `admin2.tsx`, `system.tsx`, `README.md`, `AI_USAGE.md` |
+| Member 4 | Mahdi Al Hashem | Administrator Portal and Quality: admin overview, submissions, catalog, categories, moderation, featured content, analytics, admin support, requirements guide, browser tests, documentation | `src/pages/admin.tsx`, `admin2.tsx`, `system.tsx`, admin routes in `src/App.tsx`, `tests/`, `README.md`, `AI_USAGE.md` |
 
 Team 24: Mahdi Al Hashem, Naser Almasoud, Abdullah Ewidah, Turki Andous.
 
