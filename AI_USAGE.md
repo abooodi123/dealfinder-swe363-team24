@@ -14,9 +14,11 @@ Every member must add their own entry below, including "I did not use any AI too
 |---|---|---|
 | Claude Code (Anthropic, Claude Opus 5.5 model) | Read the course brief, the team task plan and the Milestone 2–3 documents; set up the Vite + React + TypeScript + Tailwind project; generated the shared data layer, UI kit, layout and the public pages; tested the pages in a browser (desktop, mobile, dark and light mode) and fixed the issues found; drafted the documentation; created the Figma reference file by capturing the prototype's screens and importing them through the Figma MCP connector. All output was reviewed by the member. | `package.json`, `vite.config.ts`, `tsconfig*.json`, `index.html`, `public/favicon.svg`, `.gitignore`, `.env.example`, `src/main.tsx`, `src/App.tsx`, `src/index.css`, `src/lib/*`, `src/ui/kit.tsx`, `src/ui/shared.tsx`, `src/ui/layout.tsx`, `src/pages/public.tsx`, placeholder pages in `src/pages/*` (for the other members), `README.md`, `CONTRIBUTING.md`, `docs/DESIGN.md`, `AI_USAGE.md`, Figma reference file (16 screens) |
 
-### Member 2 – _name_ (Authentication and Shopper Features)
+### Member 2 – Naser Almasoud (Authentication and Shopper Features)
 
-_To be completed by Member 2._
+| Tool | How it was used | Files affected |
+|---|---|---|
+| Claude (Anthropic, Claude Opus 5.5 model) | Read the milestone guideline and the team task plan; read the shared code from Member 1 (`src/lib/*`, `src/ui/*`); wrote the log in, sign up (shopper and store owner), account activation and forgot / reset password pages, and the favorites, profile settings, write / edit review pages and the Report / Edit review buttons; tested every flow in a browser (desktop and mobile, light and dark mode) and fixed the issues found; drafted the commit messages and this entry. All output was reviewed by the member, who can explain every line. | `src/pages/auth.tsx`, `src/pages/shopper.tsx`, `AI_USAGE.md` |
 
 ### Member 3 – _name_ (Store Owner Portal)
 
