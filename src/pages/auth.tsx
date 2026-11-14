@@ -9,13 +9,13 @@
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { CircleCheck, KeyRound, LogIn, MailCheck, TriangleAlert, UserPlus } from "lucide-react";
+import { CircleCheck, Clock, KeyRound, LogIn, MailCheck, TriangleAlert, UserPlus } from "lucide-react";
 import type { User } from "../lib/types";
 import { getData, homeFor, login, update, useCurrentUser } from "../lib/store";
 import { DEMO_ACCOUNTS } from "../lib/seed";
 import { cn, isStrongPassword, isValidEmail, passwordChecks } from "../lib/format";
 import { useDocumentTitle } from "../lib/hooks";
-import { Alert, Button, Card, Checkbox, Field, Input, useToast } from "../ui/kit";
+import { Alert, Button, Card, Checkbox, Field, Input, Spinner, useToast } from "../ui/kit";
 import { PlannedPage } from "../ui/shared";
 
 const MEMBER = "Member 2 (Authentication and Shopper Features)";
@@ -38,8 +38,8 @@ function safeNext(next: string | null, user: User): string {
 type LinkKind = "activate" | "reset";
 
 /** Builds the token placed in an emailed link: { kind, email, created time } in base64. */
-export function makeLinkToken(kind: LinkKind, email: string): string {
-  return btoa(JSON.stringify({ k: kind, e: email.trim().toLowerCase(), t: Date.now() }));
+export function makeLinkToken(kind: LinkKind, email: string, createdAt = Date.now()): string {
+  return btoa(JSON.stringify({ k: kind, e: email.trim().toLowerCase(), t: createdAt }));
 }
 
 /** Reads a link token. Returns null when the token is damaged or for another kind of link. */
@@ -382,6 +382,13 @@ function CheckYourEmail({ email }: { email: string }) {
         <Link to={link} className="font-semibold text-brand-text underline">
           Activate my account
         </Link>
+        <span className="mt-1 block text-xs text-muted">
+          To test the error screen, open{" "}
+          <Link to={`/activate?token=${encodeURIComponent(makeLinkToken("activate", email, Date.now() - 2 * 86_400_000))}`} className="underline">
+            an expired link
+          </Link>
+          .
+        </span>
       </PrototypeMail>
     </AuthCard>
   );
@@ -528,13 +535,121 @@ export const ForgotPasswordPage = () => (
   />
 );
 
-export const ActivatePage = () => (
-  <PlannedPage
-    title="Activate your account"
-    member={MEMBER}
-    file={FILE}
-    requirements="W01-3, FR01"
-    tasks={["Activation link landing page", "Expired or already-used link states", "Continue to Log in"]}
-  />
-);
+/* ============================ Activation ============================ */
+
+const DAY_MS = 86_400_000;
+
+type ActivationState = "checking" | "activated" | "already" | "expired" | "invalid";
+
+/** W01-3: the page the activation email links to. */
+export function ActivatePage() {
+  const [params] = useSearchParams();
+  const token = params.get("token");
+  const [state, setState] = useState<ActivationState>("checking");
+  const [email, setEmail] = useState("");
+  const [newLink, setNewLink] = useState<string | null>(null);
+  useDocumentTitle("Activate your account");
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("checking");
+    setNewLink(null);
+    wait(700).then(() => {
+      if (cancelled) return;
+      const info = readLinkToken(token, "activate");
+      const account = info && getData().users.find((u) => u.email.toLowerCase() === info.email);
+      if (!info || !account) return setState("invalid");
+      setEmail(account.email);
+      if (account.activated) return setState("already");
+      if (info.ageMs > DAY_MS) return setState("expired");
+      update((d) => {
+        const u = d.users.find((x) => x.id === account.id);
+        if (u) u.activated = true;
+      });
+      setState("activated");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const box = (tone: "brand" | "ok" | "warn" | "bad", icon: ReactNode, title: string, body: ReactNode, actions: ReactNode) => (
+    <div className="mx-auto flex min-h-[70vh] w-full max-w-md items-center px-4 py-10">
+      <Card className="w-full p-8 text-center shadow-xl shadow-black/5">
+        <div
+          className={cn(
+            "mx-auto mb-5 flex size-16 items-center justify-center rounded-full [&>svg]:size-8",
+            tone === "ok" ? "bg-ok-soft text-ok" : tone === "warn" ? "bg-warn-soft text-warn" : tone === "bad" ? "bg-bad-soft text-bad" : "bg-brand-soft text-brand-text",
+          )}
+        >
+          {icon}
+        </div>
+        <h1 className="text-2xl font-bold">{title}</h1>
+        <div className="mt-2 text-sm leading-relaxed text-muted">{body}</div>
+        {actions && <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">{actions}</div>}
+      </Card>
+    </div>
+  );
+
+  if (state === "checking") return box("brand", <Spinner className="text-brand-text" label="Checking your link" />, "Activating your account…", "This only takes a moment.", null);
+
+  if (state === "activated")
+    return box(
+      "ok",
+      <CircleCheck />,
+      "Your account is active",
+      <>Thanks for confirming {email}. You can log in now.</>,
+      <Button variant="primary" to={`/login?reason=activated&email=${encodeURIComponent(email)}`}>
+        Log in
+      </Button>,
+    );
+
+  if (state === "already")
+    return box(
+      "brand",
+      <CircleCheck />,
+      "Already activated",
+      "This link was already used, so your account is active. Just log in.",
+      <Button variant="primary" to={`/login?email=${encodeURIComponent(email)}`}>
+        Log in
+      </Button>,
+    );
+
+  if (state === "expired")
+    return box(
+      "warn",
+      <Clock />,
+      "This link has expired",
+      <>
+        Activation links work for 24 hours. We can send a fresh one to {email}.
+        {newLink && (
+          <PrototypeMail>
+            The new email contains this link:{" "}
+            <Link to={newLink} className="font-semibold text-brand-text underline">
+              Activate my account
+            </Link>
+          </PrototypeMail>
+        )}
+      </>,
+      !newLink && (
+        <Button variant="primary" icon={<MailCheck className="size-4" />} onClick={() => setNewLink(activationLink(email))}>
+          Send me a new link
+        </Button>
+      ),
+    );
+
+  return box(
+    "bad",
+    <TriangleAlert />,
+    "This link is not valid",
+    "The link may have been copied incompletely. If you already created an account, log in and we will help you from there.",
+    <>
+      <Button variant="primary" to="/login">
+        Log in
+      </Button>
+      <Button to="/signup">Create an account</Button>
+    </>,
+  );
+}
+
 
