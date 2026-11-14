@@ -78,8 +78,8 @@ No API keys or environment variables are needed for this milestone (see `.env.ex
 ### Installation
 
 ```bash
-git clone https://github.com/<owner>/<repository>.git
-cd <repository>
+git clone https://github.com/abooodi123/dealfinder-swe363-team24.git
+cd dealfinder-swe363-team24
 npm install
 ```
 
