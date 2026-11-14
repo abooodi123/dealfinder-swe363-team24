@@ -9,13 +9,13 @@
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { LogIn, MailCheck } from "lucide-react";
+import { CircleCheck, KeyRound, LogIn, MailCheck, TriangleAlert, UserPlus } from "lucide-react";
 import type { User } from "../lib/types";
-import { getData, homeFor, login, useCurrentUser } from "../lib/store";
+import { getData, homeFor, login, update, useCurrentUser } from "../lib/store";
 import { DEMO_ACCOUNTS } from "../lib/seed";
-import { isValidEmail } from "../lib/format";
+import { cn, isStrongPassword, isValidEmail, passwordChecks } from "../lib/format";
 import { useDocumentTitle } from "../lib/hooks";
-import { Alert, Button, Card, Field, Input, useToast } from "../ui/kit";
+import { Alert, Button, Card, Checkbox, Field, Input, useToast } from "../ui/kit";
 import { PlannedPage } from "../ui/shared";
 
 const MEMBER = "Member 2 (Authentication and Shopper Features)";
@@ -299,33 +299,220 @@ function PasswordInput({
 
 /* ====================== Screens still to be built ====================== */
 
-export const SignUpPage = () => (
-  <PlannedPage
-    title="Create a shopper account"
-    member={MEMBER}
-    file={FILE}
-    requirements="W01-1, W01-2, FR01"
-    tasks={[
-      "Name, email and password fields with live password rules",
-      "Validation errors (required fields, email format, email already used)",
-      "Success screen: Check your email for the activation link",
-    ]}
-  />
-);
+/* ============================== Sign up ============================= */
 
-export const OwnerSignUpPage = () => (
-  <PlannedPage
-    title="Register as a store owner"
-    member={MEMBER}
-    file={FILE}
-    requirements="W01-7, FR09"
-    tasks={[
-      "Account details plus business name and phone number",
-      "Same validation as shopper sign up",
-      "Explain that an owner account does not publish a store automatically",
-    ]}
-  />
-);
+/** Live checklist of the password rules (turns green as each rule is met). */
+export function PasswordRules({ value }: { value: string }) {
+  return (
+    <ul className="mt-1 grid gap-1 text-xs sm:grid-cols-2" aria-label="Password rules">
+      {passwordChecks(value).map((rule) => (
+        <li key={rule.label} className={cn("flex items-center gap-1.5", rule.ok ? "text-ok" : "text-subtle")}>
+          <CircleCheck className={cn("size-3.5 shrink-0", !rule.ok && "opacity-40")} aria-hidden />
+          {rule.label}
+          <span className="sr-only">{rule.ok ? "(met)" : "(not met yet)"}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** 9 to 15 digits; spaces, dashes, brackets and a leading + are allowed. */
+export const isValidPhone = (phone: string): boolean => /^\+?[\d\s()-]+$/.test(phone.trim()) && /^\d{9,15}$/.test(phone.replace(/\D/g, ""));
+
+interface SignUpValues {
+  name: string;
+  email: string;
+  businessName: string;
+  phone: string;
+  password: string;
+  confirm: string;
+  terms: boolean;
+}
+
+/** Returns one message per invalid field (empty object = everything is valid). */
+function validateSignUp(v: SignUpValues, owner: boolean): Partial<Record<keyof SignUpValues, string>> {
+  const e: Partial<Record<keyof SignUpValues, string>> = {};
+  if (!v.name.trim()) e.name = "Enter your full name.";
+  else if (v.name.trim().length < 2) e.name = "Use at least 2 characters.";
+  if (!v.email.trim()) e.email = "Enter your email address.";
+  else if (!isValidEmail(v.email)) e.email = "Enter a valid email address, like name@example.com.";
+  else if (getData().users.some((u) => u.email.toLowerCase() === v.email.trim().toLowerCase()))
+    e.email = "An account with this email already exists. Log in or reset your password instead.";
+  if (owner) {
+    if (v.businessName.trim().length < 2) e.businessName = "Enter your business name.";
+    if (!v.phone.trim()) e.phone = "Enter a phone number.";
+    else if (!isValidPhone(v.phone)) e.phone = "Use 9 to 15 digits, for example +966 50 123 4567.";
+  }
+  if (!v.password) e.password = "Choose a password.";
+  else if (!isStrongPassword(v.password)) e.password = "Choose a stronger password: every rule below must be met.";
+  if (!v.confirm) e.confirm = "Type the password again.";
+  else if (v.confirm !== v.password) e.confirm = "The two passwords do not match.";
+  if (!v.terms) e.terms = "Please accept the Terms of Use to continue.";
+  return e;
+}
+
+/** Shown after sign up: the account exists but must be activated from the email link. */
+function CheckYourEmail({ email }: { email: string }) {
+  const [link, setLink] = useState(() => activationLink(email));
+  const [resent, setResent] = useState(false);
+  return (
+    <AuthCard title="Check your email" icon={<MailCheck />} subtitle={<>We sent an activation link to <strong className="text-fg">{email}</strong>. Open it to activate your account, then log in.</>}>
+      <p className="text-sm text-muted">Nothing there after a few minutes? Check your spam folder or send it again. Only the newest link works and it expires after 24 hours.</p>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setLink(activationLink(email));
+            setResent(true);
+          }}
+        >
+          Send the email again
+        </Button>
+        <Button variant="ghost" to={`/login?email=${encodeURIComponent(email)}`}>
+          Go to log in
+        </Button>
+      </div>
+      {resent && (
+        <p role="status" className="mt-3 text-sm font-semibold text-ok">
+          A new email is on its way.
+        </p>
+      )}
+      <PrototypeMail>
+        The activation email contains this link:{" "}
+        <Link to={link} className="font-semibold text-brand-text underline">
+          Activate my account
+        </Link>
+      </PrototypeMail>
+    </AuthCard>
+  );
+}
+
+/** W01-1, W01-2 (shopper) and W01-7 (store owner, FR09). */
+function SignUpForm({ owner }: { owner: boolean }) {
+  const navigate = useNavigate();
+  const user = useCurrentUser();
+  const [params] = useSearchParams();
+  const next = params.get("next");
+  const [v, setV] = useState<SignUpValues>({ name: "", email: "", businessName: "", phone: "", password: "", confirm: "", terms: false });
+  const [errors, setErrors] = useState<Partial<Record<keyof SignUpValues, string>>>({});
+  const [busy, setBusy] = useState(false);
+  const [doneEmail, setDoneEmail] = useState<string | null>(null);
+
+  // Signed-in users do not need a new account.
+  useEffect(() => {
+    if (user && !doneEmail) navigate(homeFor(user.role), { replace: true });
+  }, [user, doneEmail, navigate]);
+
+  const set = (key: keyof SignUpValues) => (value: string) => setV((s) => ({ ...s, [key]: value }));
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    const found = validateSignUp(v, owner);
+    setErrors(found);
+    if (Object.keys(found).length) {
+      // Move keyboard focus to the first field with a problem.
+      window.requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+      return;
+    }
+    setBusy(true);
+    await wait(700);
+    const email = v.email.trim();
+    update((d) => {
+      d.users.push({
+        id: `u-${Date.now()}`,
+        name: v.name.trim(),
+        email,
+        password: v.password,
+        role: owner ? "owner" : "shopper",
+        activated: false,
+        suspended: false,
+        createdAt: Date.now(),
+        favorites: [],
+        ...(owner ? { businessName: v.businessName.trim(), phone: v.phone.trim() } : {}),
+      });
+    });
+    setBusy(false);
+    setDoneEmail(email);
+  };
+
+  if (doneEmail) return <CheckYourEmail email={doneEmail} />;
+
+  const loginQuery = next ? `?next=${encodeURIComponent(next)}` : "";
+  const field = (key: keyof SignUpValues) => ({ invalid: !!errors[key], "aria-describedby": errors[key] ? `su-${key}-error` : undefined, disabled: busy });
+
+  return (
+    <AuthCard
+      title={owner ? "Register as a store owner" : "Create your account"}
+      icon={owner ? <KeyRound /> : <UserPlus />}
+      subtitle={
+        owner
+          ? "Manage your store's listing, coupons and replies to reviews."
+          : "Save your favorite stores and share honest reviews. It takes a minute."
+      }
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link to={`/login${loginQuery}`} className="font-semibold whitespace-nowrap text-brand-text hover:underline">
+            Log in
+          </Link>
+          <span className="mx-2" aria-hidden>
+            &middot;
+          </span>
+          <Link to={owner ? "/signup" : "/signup/owner"} className="font-semibold whitespace-nowrap text-brand-text hover:underline">
+            {owner ? "I am a shopper" : "I own a store"}
+          </Link>
+        </>
+      }
+    >
+      {owner && (
+        <Alert className="mb-5" title="Your store is not published automatically">
+          After activating this account you submit your store (or claim an existing listing). Our team checks the ownership evidence before it goes live.
+        </Alert>
+      )}
+      <form onSubmit={submit} noValidate className="space-y-4">
+        <Field label="Full name" htmlFor="su-name" required error={errors.name}>
+          <Input id="su-name" autoComplete="name" maxLength={60} value={v.name} onChange={(e) => set("name")(e.target.value)} {...field("name")} />
+        </Field>
+        <Field label="Email" htmlFor="su-email" required error={errors.email} hint="We send a link here to activate your account.">
+          <Input id="su-email" type="email" autoComplete="email" placeholder="you@example.com" value={v.email} onChange={(e) => set("email")(e.target.value)} {...field("email")} />
+        </Field>
+        {owner && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Business name" htmlFor="su-businessName" required error={errors.businessName}>
+              <Input id="su-businessName" autoComplete="organization" maxLength={80} value={v.businessName} onChange={(e) => set("businessName")(e.target.value)} {...field("businessName")} />
+            </Field>
+            <Field label="Phone" htmlFor="su-phone" required error={errors.phone} hint="Used by our team to verify your store.">
+              <Input id="su-phone" type="tel" autoComplete="tel" placeholder="+966 50 123 4567" value={v.phone} onChange={(e) => set("phone")(e.target.value)} {...field("phone")} />
+            </Field>
+          </div>
+        )}
+        <Field label="Password" htmlFor="su-password" required error={errors.password}>
+          <PasswordInput id="su-password" autoComplete="new-password" value={v.password} onChange={set("password")} invalid={!!errors.password} disabled={busy} />
+          <PasswordRules value={v.password} />
+        </Field>
+        <Field label="Confirm password" htmlFor="su-confirm" required error={errors.confirm}>
+          <PasswordInput id="su-confirm" autoComplete="new-password" value={v.confirm} onChange={set("confirm")} invalid={!!errors.confirm} disabled={busy} />
+        </Field>
+        <div>
+          <Checkbox id="su-terms" checked={v.terms} onChange={(terms) => setV((s) => ({ ...s, terms }))} label="I agree to the Terms of Use and the Privacy Policy." />
+          {errors.terms && (
+            <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-sm text-bad">
+              <TriangleAlert className="size-4 shrink-0" aria-hidden />
+              {errors.terms}
+            </p>
+          )}
+        </div>
+        <Button type="submit" variant="primary" size="lg" fullWidth loading={busy}>
+          {busy ? "Creating account…" : owner ? "Create store owner account" : "Create account"}
+        </Button>
+      </form>
+    </AuthCard>
+  );
+}
+
+export const SignUpPage = () => <SignUpForm owner={false} />;
+export const OwnerSignUpPage = () => <SignUpForm owner />;
 
 export const ForgotPasswordPage = () => (
   <PlannedPage
