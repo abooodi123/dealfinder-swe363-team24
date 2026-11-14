@@ -6,8 +6,8 @@ This guide explains how Members 2, 3 and 4 add their screens on top of the share
 ## 1. Get started
 
 ```bash
-git clone https://github.com/<owner>/<repository>.git
-cd <repository>
+git clone https://github.com/abooodi123/dealfinder-swe363-team24.git
+cd dealfinder-swe363-team24
 npm install
 git checkout main
 git pull

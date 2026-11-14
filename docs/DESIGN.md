@@ -1,6 +1,7 @@
 # DealFinder design system
 
-This document describes the visual language used in the React code and in the Figma reference file.
+This document describes the visual language used in the React code and in the
+[Figma reference file](https://www.figma.com/design/ePDnxHj04TxolovVtfESJi).
 The source of truth for the values is `src/index.css` (tokens) and `src/ui/kit.tsx` / `src/ui/shared.tsx` (components).
 
 ## Themes

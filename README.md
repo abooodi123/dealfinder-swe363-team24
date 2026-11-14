@@ -78,8 +78,8 @@ No API keys or environment variables are needed for this milestone (see `.env.ex
 ### Installation
 
 ```bash
-git clone https://github.com/<owner>/<repository>.git
-cd <repository>
+git clone https://github.com/abooodi123/dealfinder-swe363-team24.git
+cd dealfinder-swe363-team24
 npm install
 ```
 
@@ -214,7 +214,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full team guide.
 
 ## Design reference (Figma)
 
-The Figma reference file (desktop and mobile screens) is maintained by Member 1. Link: _to be added (View only)_.
+The Figma reference file is maintained by Member 1:
+**[DealFinder – Milestone 4 Figma Reference](https://www.figma.com/design/ePDnxHj04TxolovVtfESJi)** (view only).
+
+The page *Member 1 – Public UI* has 16 frames made of editable layers, captured from this prototype:
+
+| Row | Frames |
+|---|---|
+| Desktop 1440 px, dark theme (default) | 01 Home · 02 Explore · 03 Explore filtered, list view · 04 Explore no results · 05 Store details · 06 404 |
+| Desktop 1440 px, light theme | 07 Home · 08 Store details |
+| Dialogs | 09 Log in to save · 10 You are leaving DealFinder · 11 Website not responding |
+| Mobile 375 px | 12 Home · 13 Explore · 14 Store details · 15 Navigation menu · 16 Explore with filters open |
+
+Members 2–4 can add a page for their own screens once Member 1 invites them to the file as editors.
 The colours, typography and components it uses are documented in [docs/DESIGN.md](docs/DESIGN.md).
 
 ---
