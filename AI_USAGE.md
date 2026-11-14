@@ -22,6 +22,9 @@ _To be completed by Member 2._
 
 _To be completed by Member 3._
 
-### Member 4 – _name_ (Administrator Portal and Quality)
+### Member 4 – Mahdi Al Hashem (Administrator Portal and Quality)
 
-_To be completed by Member 4._
+| Tool | How it was used | Files affected |
+|---|---|---|
+| ChatGPT (OpenAI) | Split Milestone 4 into the four member roles and planned the order of work. | Team task plan (not in the repository) |
+| Claude (Anthropic, Claude Opus 5.5 model) | Read the course brief, the team task plan, Member 1's foundation and CONTRIBUTING.md; generated the administrator pages (overview, submissions, catalog, add / edit store, categories, moderation, featured content, analytics with CSV export, admin support), the requirements guide and the Access denied improvement; added the admin routes in `App.tsx`; wrote the browser tests; type-checked, built and tested the pages in a browser (desktop and 375 px mobile, dark and light mode) and fixed the issues found; drafted the README sections and this entry. I reviewed, tested and can explain all of it. | `src/pages/admin.tsx`, `src/pages/admin2.tsx`, `src/pages/system.tsx`, Member 4 routes in `src/App.tsx`, `tests/test_admin.py`, `tests/README.md`, `README.md`, `AI_USAGE.md` |
