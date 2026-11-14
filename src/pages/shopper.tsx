@@ -515,12 +515,12 @@ function StarPicker({ value, onChange, invalid }: { value: number; onChange: (va
                 onChange(Math.max(1, (value || 2) - 1));
               }
             }}
-            className="rounded-lg p-1 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-brand-text"
+            className="rounded-lg p-0.5 transition-transform sm:p-1 hover:scale-110 focus-visible:outline-2 focus-visible:outline-brand-text"
           >
-            <Star className={cn("size-9", n <= shown ? "fill-star text-star" : invalid ? "text-bad/60" : "text-line-strong")} strokeWidth={1.5} aria-hidden />
+            <Star className={cn("size-8 sm:size-9", n <= shown ? "fill-star text-star" : invalid ? "text-bad/60" : "text-line-strong")} strokeWidth={1.5} aria-hidden />
           </button>
         ))}
-        <span className="ml-2 text-sm font-semibold text-muted" aria-hidden>
+        <span className="ml-1 text-sm font-semibold whitespace-nowrap text-muted sm:ml-2" aria-hidden>
           {shown ? STAR_WORDS[shown] : "Choose a rating"}
         </span>
       </div>
