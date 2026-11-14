@@ -251,7 +251,7 @@ export function LoginPage() {
 }
 
 /** Password field with a Show / Hide button. */
-function PasswordInput({
+export function PasswordInput({
   id,
   value,
   onChange,
