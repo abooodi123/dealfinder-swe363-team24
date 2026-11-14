@@ -8,14 +8,14 @@
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CircleAlert, CircleCheck, Heart, Search, Star, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, CircleAlert, CircleCheck, Flag, Heart, Pencil, Search, Star, Trash2, TriangleAlert } from "lucide-react";
 import type { Review, Store } from "../lib/types";
 import { getData, toggleFavorite, update, useCurrentUser, useData } from "../lib/store";
 import { getStore, isPublicStore, storeRating } from "../lib/selectors";
 import { cn, containsContactDetails, isStrongPassword, isValidEmail, plural } from "../lib/format";
 import { useDocumentTitle, useSimulatedLoading } from "../lib/hooks";
 import { Alert, Button, Card, Container, EmptyState, Field, Input, Modal, PageHeader, Select, TextArea, useToast } from "../ui/kit";
-import { RatingInline, StoreCard, StoreCardSkeleton, StoreLogo } from "../ui/shared";
+import { LoginPrompt, RatingInline, StoreCard, StoreCardSkeleton, StoreLogo } from "../ui/shared";
 import { PasswordInput, PasswordRules, isValidPhone, wait } from "./auth";
 
 /* ============================== Favorites ============================= */
@@ -739,11 +739,134 @@ export function WriteReviewPage() {
   );
 }
 
+/* ======================= Review actions (Report / Edit) ====================== */
+
+const REPORT_REASONS = ["Spam or fake", "Offensive or abusive", "Not about this store", "Contains personal information", "Other"] as const;
+
 /**
- * Buttons shown under each review on the Store details page (Report, Edit).
- * TODO (Member 2): return a Report button (one report per review per user; guests get the
- * LoginPrompt) and an Edit button on the shopper's own review.
+ * Buttons shown under each review on the Store details page.
+ * The author gets Edit; everyone else can Report once (guests are asked to log in).
  */
-export function ReviewActions(_props: { review: Review; store: Store }) {
-  return null;
+export function ReviewActions({ review, store }: { review: Review; store: Store }) {
+  const user = useCurrentUser();
+  const toast = useToast();
+  const [prompt, setPrompt] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<string>("");
+  const [note, setNote] = useState("");
+  const [errors, setErrors] = useState<{ reason?: string; note?: string }>({});
+  const [busy, setBusy] = useState(false);
+
+  // Administrators moderate reviews from the admin portal instead.
+  if (user?.role === "admin") return null;
+
+  if (user && review.userId === user.id) {
+    return (
+      <Button size="sm" variant="ghost" to={`/stores/${store.id}/review`} icon={<Pencil className="size-3.5" />}>
+        Edit your review
+      </Button>
+    );
+  }
+
+  const alreadyReported = !!user && review.flags.some((f) => f.by === user.id);
+
+  const close = () => {
+    setOpen(false);
+    setReason("");
+    setNote("");
+    setErrors({});
+  };
+
+  const send = async () => {
+    if (!user) return;
+    const found: typeof errors = {};
+    if (!reason) found.reason = "Choose a reason.";
+    if (reason === "Other" && !note.trim()) found.note = "Tell us briefly what is wrong.";
+    setErrors(found);
+    if (found.reason || found.note) return;
+    setBusy(true);
+    await wait(500);
+    update((d) => {
+      const r = d.reviews.find((x) => x.id === review.id);
+      if (r && !r.flags.some((f) => f.by === user.id)) {
+        r.flags.push({ by: user.id, byRole: user.role, reason, ...(note.trim() ? { note: note.trim() } : {}), at: Date.now() });
+      }
+    });
+    setBusy(false);
+    close();
+    toast({ title: "Thanks for the report", description: "Our moderators will take a look. The review stays visible until they decide." });
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={<Flag className="size-3.5" />}
+        disabled={alreadyReported}
+        onClick={() => (user ? setOpen(true) : setPrompt(true))}
+        title={alreadyReported ? "You already reported this review" : undefined}
+      >
+        {alreadyReported ? "Reported" : "Report"}
+      </Button>
+
+      <LoginPrompt
+        open={prompt}
+        onClose={() => setPrompt(false)}
+        title="Log in to report a review"
+        reason="Reports come from signed-in accounts so our moderators can follow up and stop misuse."
+      />
+
+      <Modal
+        open={open}
+        onClose={close}
+        icon={<Flag />}
+        title="Report this review"
+        description={`By ${review.userName} on ${store.name}. You can report each review once.`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={close}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={busy} onClick={send}>
+              Send report
+            </Button>
+          </>
+        }
+      >
+        <fieldset>
+          <legend className="text-sm font-semibold">What is wrong with it?</legend>
+          <div className="mt-3 space-y-2">
+            {REPORT_REASONS.map((r) => (
+              <label
+                key={r}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors",
+                  reason === r ? "border-brand bg-brand-soft" : "border-line hover:bg-surface-2",
+                )}
+              >
+                <input type="radio" name={`report-${review.id}`} value={r} checked={reason === r} onChange={() => setReason(r)} className="accent-brand" />
+                {r}
+              </label>
+            ))}
+          </div>
+          {errors.reason && (
+            <p role="alert" className="mt-2 flex items-center gap-1.5 text-sm text-bad">
+              <CircleAlert className="size-4 shrink-0" aria-hidden />
+              {errors.reason}
+            </p>
+          )}
+        </fieldset>
+        <Field
+          className="mt-4"
+          label={reason === "Other" ? "Details" : "Details (optional)"}
+          htmlFor={`report-note-${review.id}`}
+          required={reason === "Other"}
+          error={errors.note}
+        >
+          <TextArea id={`report-note-${review.id}`} rows={3} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} invalid={!!errors.note} disabled={busy} />
+        </Field>
+      </Modal>
+    </>
+  );
 }
