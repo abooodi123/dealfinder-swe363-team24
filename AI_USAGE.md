@@ -18,9 +18,11 @@ Every member must add their own entry below, including "I did not use any AI too
 
 _To be completed by Member 2._
 
-### Member 3 – _name_ (Store Owner Portal)
+### Member 3 – Turki Andous (Store Owner Portal)
 
-_To be completed by Member 3._
+| Tool | How it was used | Files affected |
+|---|---|---|
+| Claude (Anthropic, Claude Opus 5.5 model) | Revised my Store Owner Portal code; compared my implementation against the Milestone 4 requirements and identified what was missing; wrote the README content for my part. I reviewed, tested and can explain all of it. | `src/pages/owner.tsx`, `src/pages/ownerParts.tsx`, `src/pages/ownerTools.tsx`, `README.md` |
 
 ### Member 4 – Mahdi Al Hashem (Administrator Portal and Quality)
 

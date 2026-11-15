@@ -235,7 +235,7 @@ Guests who open a protected page are sent to Log in and brought back afterwards;
 |---|---|---|---|
 | Member 1 | Abdullah Ewidah | Public UI and Design Lead: Figma reference, shared layout and UI kit, Home, Explore, Store details, 404 | `src/pages/public.tsx`, `src/ui/*`, `src/index.css`, `src/App.tsx` |
 | Member 2 | _to be confirmed_ | Authentication and Shopper Features | `src/pages/auth.tsx`, `src/pages/shopper.tsx` |
-| Member 3 | _to be confirmed_ | Store Owner Portal | `src/pages/owner.tsx`, `ownerParts.tsx`, `ownerTools.tsx` |
+| Member 3 | Turki Andous | Store Owner Portal | `src/pages/owner.tsx`, `ownerParts.tsx`, `ownerTools.tsx` |
 | Member 4 | Mahdi Al Hashem | Administrator Portal and Quality: admin overview, submissions, catalog, categories, moderation, featured content, analytics, admin support, requirements guide, browser tests, documentation | `src/pages/admin.tsx`, `admin2.tsx`, `system.tsx`, admin routes in `src/App.tsx`, `tests/`, `README.md`, `AI_USAGE.md` |
 
 Team 24: Mahdi Al Hashem, Naser Almasoud, Abdullah Ewidah, Turki Andous.
