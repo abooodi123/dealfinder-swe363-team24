@@ -38,7 +38,7 @@ DealFinder has 24 functional requirements (FR01–FR24) across three roles, defi
 | Public browsing | FR02 discovery, FR03 price filter, FR04 rating sort, FR05 store details, FR08 official website | Home, Explore, Store details, 404 | Member 1 | Done |
 | Shared UI | Navbar, footer, UI kit, store cards, loading / empty / error states, dark and light theme, responsive layout | All pages | Member 1 | Done |
 | Accounts and shopper | FR01 accounts, FR06 favorites, FR07 reviews | Log in, Sign up, Profile, Favorites, Write a review | Member 2 | In progress |
-| Store owner portal | FR09–FR16 | Dashboard, Add / Claim store, Applications, Edit profile, Coupons, Support | Member 3 | In progress |
+| Store owner portal | FR10–FR16 | Dashboard, Manage store, Add / Claim store, Applications, Coupons, Reviews, Analytics, Support | Member 3 | Done |
 | Administrator portal | FR17–FR24 (+ admin side of FR16) | Overview, Submissions, Catalog, Add / Edit store, Categories, Moderation, Featured, Analytics, Support | Member 4 | Done |
 | Quality | Requirements guide, Access denied, browser tests (`tests/`) | Guide, Access denied | Member 4 | Done |
 
@@ -50,6 +50,23 @@ DealFinder has 24 functional requirements (FR01–FR24) across three roles, defi
 - **Visit official website** – a short reachability check, the *You are leaving DealFinder* notice, then the store opens in a new tab and one referral click is recorded. If the website is down, the shopper is told clearly and can report the broken link (once).
 - **Guest actions** – saving a store as a guest opens a *Log in to save* prompt; after logging in the user returns to the same store and it is saved automatically.
 - **404 and error screens** – a friendly not-found page with search and category links, an error boundary that shows *This page hit a problem* instead of a blank screen, and an *Access denied* page for the wrong role.
+
+### Store owner portal (Member 3)
+
+All owner pages share one tab bar (Overview, Applications, Coupons, Reviews, Analytics, Support) with counts of what needs attention.
+Owners can only open their own stores, applications and support requests; anything else shows a *not found* message.
+
+- **Dashboard (W08)** – summary of live listings, pending applications, website visits for the last 30 days (with the change from the previous 30 days) and live coupons; a *Needs your attention* list (changes requested, disabled stores, broken-link reports, support replies, reviews without a reply); every listing with its status and actions; recent applications; shortcuts.
+- **Listing status (FR15)** – *Active*, *Hidden* or *Closed*, each with a confirmation dialog and *Undo*. Hidden stores disappear from search right away; closed stores stay visible with a Closed badge.
+- **Manage store (W11, FR12)** – edit description, category, price level, keywords and contact email with validation. The name and website of a verified store are locked because they are part of the ownership check. Broken-link reports can be cleared once the website works again.
+- **Add a store (W09, FR10)** – three steps: store details, proof of ownership, review and submit. The website and name are checked for duplicates; if the website already belongs to an unclaimed listing, the owner is offered to claim it instead. The new store is saved as *Pending review* and administrators are notified.
+- **Proof of ownership** – a 10-digit commercial registration number with the certificate (PDF, PNG or JPG up to 5 MB), a 6-digit code sent to an email on the store's domain (the prototype shows the code in a message), or a DNS TXT record check.
+- **Claim a listing (FR11)** – contact details, role and proof of ownership. Blocked when the owner already manages the store, when it already has an owner, or when the owner's earlier claim is still being reviewed.
+- **My applications (W10, FR13)** – filters (In review, Needs changes, Approved, Rejected / withdrawn), a status timeline, the administrator's requested changes as a checklist, *Fix and resubmit* (enabled once every change is ticked), resubmission after a rejection (creates a new APP number), *Withdraw* with confirmation and the full history.
+- **Coupons (W12, FR14)** – create, edit, pause / activate and delete (with confirmation and Undo). Codes are 4–15 letters or numbers and unique per store; percentage discounts up to 90%, fixed discounts up to 10,000 SAR; the last valid day must be within one year. Paused and expired coupons are hidden from shoppers.
+- **Reviews and replies** – filter by store, stars and *Needs reply*; reply, edit or delete a reply (5–500 characters, no links, emails or phone numbers); report a review to the moderators once.
+- **Analytics** – daily website visits for 7, 30 or 90 days (bar chart with a table view for screen readers), best day, coupon copies, new reviews, visits per store and coupons ranked by copies.
+- **Platform support (W13, FR16)** – requests with status filters, a new request form (topic, optional store, subject, message of 20+ characters) and the conversation with the DealFinder team; opening a request marks the reply as read; *Close request*, and replying reopens it.
 
 ### Administrator portal (Member 4)
 
@@ -156,8 +173,9 @@ Prototype tools can also switch between dark and light mode and **reset the demo
 5. **Leaving notice** – press *Visit official website*, then *Stay on DealFinder* or *Continue to website*.
 6. **Website down** – open *Palm & Pine Decor* and press *Visit official website*, then *Report broken link*.
 7. **Guest save** – as a guest press *Save to favorites*, choose *Log in*, sign in as the shopper and you return to the store with it saved.
-8. **Administrator** – sign in as the administrator, open *Submissions* and approve *Henna House*; it appears on Explore with the Verified badge. The [requirements guide](http://localhost:5173/guide) lists what to try for FR17–FR24.
-9. **Responsive** – resize the window or use the browser's device toolbar; the filters collapse behind a *Filters* button and the navbar becomes a menu on mobile.
+8. **Store owner** – sign in as the store owner. Open *Aroma Lane needs changes*: the resubmit form rejects the 9-digit registration number until it has 10 digits, and every requested change must be ticked. Try *Hidden* on *Urban Nest*, create a coupon, reply to the 3-star review, and add a store using the website `https://loomlinen.sa` to see the duplicate check suggest a claim.
+9. **Administrator** – sign in as the administrator, open *Submissions* and approve *Henna House*; it appears on Explore with the Verified badge. The [requirements guide](http://localhost:5173/guide) lists what to try for FR17–FR24.
+10. **Responsive** – resize the window or use the browser's device toolbar; the filters collapse behind a *Filters* button and the navbar becomes a menu on mobile.
 
 ---
 
@@ -187,8 +205,8 @@ Prototype tools can also switch between dark and light mode and **reset the demo
 │       ├── public.tsx       # Member 1: Home, Explore, Store details, 404
 │       ├── auth.tsx         # Member 2: Log in, Sign up, password reset, activation
 │       ├── shopper.tsx      # Member 2: Favorites, Profile, Write a review
-│       ├── owner.tsx        # Member 3: Owner dashboard and listings
-│       ├── ownerParts.tsx   # Member 3: Store submission and claim
+│       ├── owner.tsx        # Member 3: Owner dashboard, manage store, shared portal parts
+│       ├── ownerParts.tsx   # Member 3: Store submission, claim, applications
 │       ├── ownerTools.tsx   # Member 3: Coupons, replies, analytics, support
 │       ├── admin.tsx        # Member 4: Admin overview, submissions, catalog, add / edit store
 │       ├── admin2.tsx       # Member 4: Categories, moderation, featured, analytics, admin support
@@ -213,7 +231,15 @@ Prototype tools can also switch between dark and light mode and **reset the demo
 | `/login`, `/signup`, `/signup/owner`, `/forgot-password`, `/activate` | Authentication | Everyone | Member 2 |
 | `/favorites`, `/stores/:storeId/review` | Favorites, Write a review | Shopper | Member 2 |
 | `/profile` | Profile settings | Signed in | Member 2 |
-| `/portal/*` | Store owner portal | Store owner | Member 3 |
+| `/portal` | Owner dashboard and listings | Store owner | Member 3 |
+| `/portal/stores/new` | Add a store (FR10) | Store owner | Member 3 |
+| `/portal/stores/:storeId` | Manage store: profile and listing status (FR12, FR15) | Store owner | Member 3 |
+| `/portal/claim/:storeId` | Claim a listing (FR11) | Store owner | Member 3 |
+| `/portal/applications`, `/portal/applications/:appId` | My applications, follow-up and resubmission (FR13); `?status=` filter | Store owner | Member 3 |
+| `/portal/coupons` | Coupons (FR14); `?store=` filter | Store owner | Member 3 |
+| `/portal/reviews` | Reviews and replies; `?store=`, `?filter=unanswered` | Store owner | Member 3 |
+| `/portal/analytics` | Owner analytics; `?store=` filter | Store owner | Member 3 |
+| `/portal/support`, `/portal/support/new`, `/portal/support/:ticketId` | Platform support (FR16) | Store owner | Member 3 |
 | `/admin` | Admin overview | Administrator | Member 4 |
 | `/admin/queue`, `/admin/queue/:appId` | Submissions and one submission (FR17) | Administrator | Member 4 |
 | `/admin/catalog`, `/admin/catalog/new`, `/admin/catalog/:storeId` | Catalog, add store, edit store (FR18–FR20) | Administrator | Member 4 |
@@ -235,7 +261,7 @@ Guests who open a protected page are sent to Log in and brought back afterwards;
 |---|---|---|---|
 | Member 1 | Abdullah Ewidah | Public UI and Design Lead: Figma reference, shared layout and UI kit, Home, Explore, Store details, 404 | `src/pages/public.tsx`, `src/ui/*`, `src/index.css`, `src/App.tsx` |
 | Member 2 | _to be confirmed_ | Authentication and Shopper Features | `src/pages/auth.tsx`, `src/pages/shopper.tsx` |
-| Member 3 | _to be confirmed_ | Store Owner Portal | `src/pages/owner.tsx`, `ownerParts.tsx`, `ownerTools.tsx` |
+| Member 3 | Turki Andous | Store Owner Portal: owner dashboard, listing status, store profile, store submission and ownership verification, listing claims, applications and resubmission, coupons, review replies, owner analytics, platform support | `src/pages/owner.tsx`, `ownerParts.tsx`, `ownerTools.tsx`, owner routes in `src/App.tsx` |
 | Member 4 | Mahdi Al Hashem | Administrator Portal and Quality: admin overview, submissions, catalog, categories, moderation, featured content, analytics, admin support, requirements guide, browser tests, documentation | `src/pages/admin.tsx`, `admin2.tsx`, `system.tsx`, admin routes in `src/App.tsx`, `tests/`, `README.md`, `AI_USAGE.md` |
 
 Team 24: Mahdi Al Hashem, Naser Almasoud, Abdullah Ewidah, Turki Andous.

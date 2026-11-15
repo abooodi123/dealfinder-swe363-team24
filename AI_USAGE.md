@@ -18,7 +18,7 @@ Every member must add their own entry below, including "I did not use any AI too
 
 _To be completed by Member 2._
 
-### Member 3 – _name_ (Store Owner Portal)
+### Member 3 – Turki Andous (Store Owner Portal)
 
 _To be completed by Member 3._
 
