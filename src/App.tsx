@@ -26,8 +26,15 @@ import { ManageStorePage, OwnerDashboardPage, OwnerPortalPage } from "./pages/ow
 import { AddStorePage, ApplicationDetailPage, ApplicationsPage, ClaimStorePage } from "./pages/ownerParts";
 import { AnalyticsPage, CouponsPage, NewTicketPage, ReviewsPage, SupportPage, TicketPage } from "./pages/ownerTools";
 // Member 4 - administrator and system pages
-import { AdminDashboardPage } from "./pages/admin";
-import { AdminSectionPage } from "./pages/admin2";
+import { AdminApplicationPage, AdminCatalogPage, AdminDashboardPage, AdminQueuePage, AdminStoreFormPage } from "./pages/admin";
+import {
+  AdminAnalyticsPage,
+  AdminCategoriesPage,
+  AdminFeaturedPage,
+  AdminModerationPage,
+  AdminSectionPage,
+  AdminSupportPage,
+} from "./pages/admin2";
 import { AccessDeniedPage, GuidePage } from "./pages/system";
 
 /**
@@ -84,6 +91,17 @@ export default function App() {
 
         {/* ---------- Member 4: administrator portal (FR17-FR24) ---------- */}
         <Route path="admin" element={<RequireRole role="admin"><AdminDashboardPage /></RequireRole>} />
+        <Route path="admin/queue" element={<RequireRole role="admin"><AdminQueuePage /></RequireRole>} />
+        <Route path="admin/queue/:appId" element={<RequireRole role="admin"><AdminApplicationPage /></RequireRole>} />
+        <Route path="admin/catalog" element={<RequireRole role="admin"><AdminCatalogPage /></RequireRole>} />
+        <Route path="admin/catalog/new" element={<RequireRole role="admin"><AdminStoreFormPage /></RequireRole>} />
+        <Route path="admin/catalog/:storeId" element={<RequireRole role="admin"><AdminStoreFormPage /></RequireRole>} />
+        <Route path="admin/categories" element={<RequireRole role="admin"><AdminCategoriesPage /></RequireRole>} />
+        <Route path="admin/moderation" element={<RequireRole role="admin"><AdminModerationPage /></RequireRole>} />
+        <Route path="admin/featured" element={<RequireRole role="admin"><AdminFeaturedPage /></RequireRole>} />
+        <Route path="admin/analytics" element={<RequireRole role="admin"><AdminAnalyticsPage /></RequireRole>} />
+        <Route path="admin/support" element={<RequireRole role="admin"><AdminSupportPage /></RequireRole>} />
+        <Route path="admin/support/:ticketId" element={<RequireRole role="admin"><AdminSupportPage /></RequireRole>} />
         <Route path="admin/*" element={<RequireRole role="admin"><AdminSectionPage /></RequireRole>} />
 
         {/* ---------- Member 4: system pages ---------- */}
